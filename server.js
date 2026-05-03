@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 3000;
 
 async function start() {
   await connectDB();
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     logger.info(`Server running on port ${PORT} [${process.env.NODE_ENV}]`);
   });
 }
