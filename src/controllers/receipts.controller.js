@@ -16,7 +16,11 @@ async function upload(req, res, next) {
       status: 'PENDING',
     });
 
-    await receiptQueue.add('process', { receiptId: receipt._id }, { attempts: 3, backoff: 5000 });
+    if (receiptQueue) {
+      await receiptQueue.add('process', { receiptId: receipt._id }, { attempts: 3, backoff: 5000 });
+    } else {
+      logger.warn('Redis yok — fiş manuel işlenmelidir (kuyruk devre dışı)');
+    }
 
     res.status(202).json({
       receipt_id: receipt._id,
