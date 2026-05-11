@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import * as SecureStore from 'expo-secure-store';
-import { authApi, saveTokens, clearTokens } from '../services/api';
+import { authApi, saveTokens, clearTokens, getStoredToken } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -9,7 +8,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    SecureStore.getItemAsync('access_token').then((token) => {
+    getStoredToken().then((token) => {
       setUser(token ? { token } : null);
       setLoading(false);
     });

@@ -1,10 +1,14 @@
-import * as SecureStore from 'expo-secure-store';
+let _SecureStore = null;
+async function getSecureStore() {
+  if (!_SecureStore) {
+    _SecureStore = await import('expo-secure-store');
+  }
+  return _SecureStore;
+}
 
 // ⚠️  Geliştirme için kendi yerel IP'ni yaz:
 //   macOS:   ipconfig getifaddr en0
-//   Linux:   hostname -I | awk '{print $1}'
-//   Windows: ipconfig | findstr IPv4
-const DEV_API_URL = 'http://192.168.1.42:3000';
+const DEV_API_URL = 'http://192.168.1.200:3000';
 const PROD_API_URL = 'https://api.senin-domain.com';
 
 export const API_BASE = __DEV__ ? DEV_API_URL : PROD_API_URL;
@@ -12,22 +16,36 @@ export const API_BASE = __DEV__ ? DEV_API_URL : PROD_API_URL;
 const TOKEN_KEY = 'access_token';
 const REFRESH_KEY = 'refresh_token';
 
+export async function getStoredToken() {
+  try {
+    const store = await getSecureStore();
+    return store.getItemAsync(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
 async function getToken() {
-  return SecureStore.getItemAsync(TOKEN_KEY);
+  return getStoredToken();
 }
 
 export async function saveTokens(access_token, refresh_token) {
-  await SecureStore.setItemAsync(TOKEN_KEY, access_token);
-  await SecureStore.setItemAsync(REFRESH_KEY, refresh_token);
+  const store = await getSecureStore();
+  await store.setItemAsync(TOKEN_KEY, access_token);
+  await store.setItemAsync(REFRESH_KEY, refresh_token);
 }
 
 export async function clearTokens() {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
-  await SecureStore.deleteItemAsync(REFRESH_KEY);
+  try {
+    const store = await getSecureStore();
+    await store.deleteItemAsync(TOKEN_KEY);
+    await store.deleteItemAsync(REFRESH_KEY);
+  } catch {}
 }
 
 async function refreshAccessToken() {
-  const refresh_token = await SecureStore.getItemAsync(REFRESH_KEY);
+  const store = await getSecureStore();
+  const refresh_token = await store.getItemAsync(REFRESH_KEY);
   if (!refresh_token) throw new Error('No refresh token');
 
   const res = await fetch(`${API_BASE}/auth/refresh`, {

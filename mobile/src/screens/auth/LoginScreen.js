@@ -63,7 +63,7 @@ export default function LoginScreen({ navigation }) {
           <Button title="Giriş Yap" onPress={handleLogin} loading={loading} style={{ marginTop: 8 }} />
           <Button
             title="Hesabın yok mu? Kayıt ol"
-            onPress={() => navigation.navigate('Register')}
+            onPress={() => navigation.navigate('Register', {})}
             variant="secondary"
             style={{ marginTop: 12 }}
           />

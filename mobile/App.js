@@ -1,91 +1,120 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, ActivityIndicator, View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-
+import {
+  View, Text, TouchableOpacity, StyleSheet,
+  ActivityIndicator, SafeAreaView, Platform,
+} from 'react-native';
+import { RouterProvider, useRouter } from './src/context/RouterContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+
 import LoginScreen from './src/screens/auth/LoginScreen';
 import RegisterScreen from './src/screens/auth/RegisterScreen';
 import HomeScreen from './src/screens/main/HomeScreen';
 import UploadScreen from './src/screens/main/UploadScreen';
-import InsightsScreen from './src/screens/main/InsightsScreen';
 import ReceiptDetailScreen from './src/screens/main/ReceiptDetailScreen';
+import InsightsScreen from './src/screens/main/InsightsScreen';
 
-const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
+const TABS = [
+  { screen: 'Home', label: 'Fişlerim', icon: '🧾' },
+  { screen: 'Upload', label: 'Ekle', icon: '📷' },
+  { screen: 'Insights', label: 'Analizler', icon: '📊' },
+];
 
-function TabIcon({ name, focused }) {
-  const icons = { Fişlerim: '🧾', 'Fiş Ekle': '📷', Analizler: '📊' };
-  return <Text style={{ fontSize: focused ? 22 : 18 }}>{icons[name]}</Text>;
-}
+function TabBar() {
+  const { current, reset } = useRouter();
+  const activeScreen = TABS.some(t => t.screen === current.screen)
+    ? current.screen
+    : 'Home';
 
-function MainTabs() {
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarIcon: ({ focused }) => <TabIcon name={route.name} focused={focused} />,
-        tabBarActiveTintColor: '#4F46E5',
-        tabBarInactiveTintColor: '#9CA3AF',
-        tabBarStyle: { borderTopColor: '#F1F5F9', paddingBottom: 4, height: 60 },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+    <View style={styles.tabBar}>
+      {TABS.map(tab => {
+        const active = activeScreen === tab.screen;
+        return (
+          <TouchableOpacity
+            key={tab.screen}
+            style={styles.tabItem}
+            onPress={() => reset(tab.screen)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.tabIcon, active && styles.tabIconActive]}>
+              {tab.icon}
+            </Text>
+            <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        );
       })}
-    >
-      <Tab.Screen name="Fişlerim" component={HomeScreen} />
-      <Tab.Screen name="Fiş Ekle" component={UploadScreen} />
-      <Tab.Screen name="Analizler" component={InsightsScreen} />
-    </Tab.Navigator>
+    </View>
   );
 }
 
-function AuthStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="Register" component={RegisterScreen} />
-    </Stack.Navigator>
-  );
-}
-
-function AppStack() {
-  return (
-    <Stack.Navigator>
-      <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
-      <Stack.Screen
-        name="ReceiptDetail"
-        component={ReceiptDetailScreen}
-        options={{ title: 'Fiş Detayı', headerTintColor: '#4F46E5' }}
-      />
-    </Stack.Navigator>
-  );
-}
-
-function RootNavigator() {
+function Navigator() {
   const { user, loading } = useAuth();
+  const { current, navigate, goBack, reset } = useRouter();
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={styles.centered}>
         <ActivityIndicator size="large" color="#4F46E5" />
       </View>
     );
   }
 
-  return user ? <AppStack /> : <AuthStack />;
+  const navigation = { navigate, goBack, reset };
+
+  if (!user) {
+    if (current.screen === 'Register') {
+      return <RegisterScreen navigation={navigation} route={current} />;
+    }
+    return <LoginScreen navigation={navigation} route={current} />;
+  }
+
+  const isDetailScreen = current.screen === 'ReceiptDetail';
+
+  return (
+    <SafeAreaView style={styles.root}>
+      <View style={styles.screenContainer}>
+        {current.screen === 'ReceiptDetail' ? (
+          <ReceiptDetailScreen navigation={navigation} route={current} />
+        ) : current.screen === 'Upload' ? (
+          <UploadScreen navigation={navigation} route={current} />
+        ) : current.screen === 'Insights' ? (
+          <InsightsScreen navigation={navigation} route={current} />
+        ) : (
+          <HomeScreen navigation={navigation} route={current} />
+        )}
+      </View>
+      {!isDetailScreen && <TabBar />}
+    </SafeAreaView>
+  );
 }
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <StatusBar style="dark" />
+    <RouterProvider>
       <AuthProvider>
-        <NavigationContainer>
-          <RootNavigator />
-        </NavigationContainer>
+        <Navigator />
       </AuthProvider>
-    </SafeAreaProvider>
+    </RouterProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F8FAFC' },
+  screenContainer: { flex: 1 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+  },
+  tabItem: { flex: 1, alignItems: 'center' },
+  tabIcon: { fontSize: 22, opacity: 0.35 },
+  tabIconActive: { opacity: 1 },
+  tabLabel: { fontSize: 10, color: '#9CA3AF', marginTop: 4, fontWeight: '500' },
+  tabLabelActive: { color: '#4F46E5', fontWeight: '700' },
+});

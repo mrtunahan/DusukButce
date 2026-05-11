@@ -1,5 +1,6 @@
 {
   "expo": {
+    "newArchEnabled": false,
     "name": "DüşükBütçe",
     "slug": "dusuk-butce",
     "version": "1.0.0",

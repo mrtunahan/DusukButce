@@ -1,9 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, FlatList, StyleSheet, RefreshControl,
   ActivityIndicator, TouchableOpacity,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import { receiptsApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import ReceiptCard from '../../components/ReceiptCard';
@@ -29,12 +28,10 @@ export default function HomeScreen({ navigation }) {
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      setLoading(true);
-      fetchReceipts(1, true).finally(() => setLoading(false));
-    }, [fetchReceipts])
-  );
+  useEffect(() => {
+    setLoading(true);
+    fetchReceipts(1, true).finally(() => setLoading(false));
+  }, [fetchReceipts]);
 
   async function onRefresh() {
     setRefreshing(true);
