@@ -6,9 +6,8 @@ async function getSecureStore() {
   return _SecureStore;
 }
 
-// ⚠️  Geliştirme için kendi yerel IP'ni yaz:
-//   macOS:   ipconfig getifaddr en0
-const DEV_API_URL = 'http://192.168.1.200:3000';
+// ⚠️ Geliştirme için kendi yerel IP'ni yaz:
+const DEV_API_URL = 'http://10.49.56.178:3000';
 const PROD_API_URL = 'https://api.senin-domain.com';
 
 export const API_BASE = __DEV__ ? DEV_API_URL : PROD_API_URL;
@@ -16,10 +15,29 @@ export const API_BASE = __DEV__ ? DEV_API_URL : PROD_API_URL;
 const TOKEN_KEY = 'access_token';
 const REFRESH_KEY = 'refresh_token';
 
+/**
+ * image_e33dac.png dosyasındaki hatayı çözen kritik kısım burasıdır.
+ * Gelen değerlerin string olduğundan emin olur.
+ */
+export async function saveTokens(access_token, refresh_token) {
+  try {
+    const store = await getSecureStore();
+
+    // Eğer veriler null/undefined gelirse boş string ata, nesne gelirse string'e çevir
+    const cleanAccess = typeof access_token === 'object' ? JSON.stringify(access_token) : String(access_token || "");
+    const cleanRefresh = typeof refresh_token === 'object' ? JSON.stringify(refresh_token) : String(refresh_token || "");
+
+    await store.setItemAsync(TOKEN_KEY, cleanAccess);
+    await store.setItemAsync(REFRESH_KEY, cleanRefresh);
+  } catch (error) {
+    console.error("Token kaydedilirken hata oluştu:", error);
+  }
+}
+
 export async function getStoredToken() {
   try {
     const store = await getSecureStore();
-    return store.getItemAsync(TOKEN_KEY);
+    return await store.getItemAsync(TOKEN_KEY);
   } catch {
     return null;
   }
@@ -29,29 +47,29 @@ async function getToken() {
   return getStoredToken();
 }
 
-export async function saveTokens(access_token, refresh_token) {
-  const store = await getSecureStore();
-  await store.setItemAsync(TOKEN_KEY, access_token);
-  await store.setItemAsync(REFRESH_KEY, refresh_token);
-}
-
 export async function clearTokens() {
   try {
     const store = await getSecureStore();
     await store.deleteItemAsync(TOKEN_KEY);
     await store.deleteItemAsync(REFRESH_KEY);
-  } catch {}
+  } catch { }
 }
 
 async function refreshAccessToken() {
   const store = await getSecureStore();
-  const refresh_token = await store.getItemAsync(REFRESH_KEY);
-  if (!refresh_token) throw new Error('No refresh token');
+
+  // Ekran Resmi 2026-05-12 13.54.13.jpg dosyasındaki hatalı referanslar temizlendi.
+  const currentRefreshToken = await store.getItemAsync(REFRESH_KEY);
+
+  if (!currentRefreshToken) {
+    await clearTokens();
+    throw new Error('No refresh token');
+  }
 
   const res = await fetch(`${API_BASE}/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token }),
+    body: JSON.stringify({ refresh_token: currentRefreshToken }),
   });
 
   if (!res.ok) {
@@ -60,6 +78,7 @@ async function refreshAccessToken() {
   }
 
   const data = await res.json();
+  // saveTokens artık kendi içinde veriyi temizlediği için burada doğrudan gönderebiliriz.
   await saveTokens(data.access_token, data.refresh_token);
   return data.access_token;
 }
@@ -75,11 +94,15 @@ async function request(path, options = {}, retry = true) {
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
   if (res.status === 401 && retry) {
-    const newToken = await refreshAccessToken();
-    return request(path, {
-      ...options,
-      headers: { ...options.headers, Authorization: `Bearer ${newToken}` },
-    }, false);
+    try {
+      const newToken = await refreshAccessToken();
+      return request(path, {
+        ...options,
+        headers: { ...options.headers, Authorization: `Bearer ${newToken}` },
+      }, false);
+    } catch (e) {
+      throw e;
+    }
   }
 
   if (!res.ok) {
@@ -91,20 +114,35 @@ async function request(path, options = {}, retry = true) {
   return res.json();
 }
 
-// Auth
+// Auth API
 export const authApi = {
-  register: (data) =>
-    request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
-  login: (data) =>
-    request('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  register: async (data) => {
+    const res = await request('/auth/register', { method: 'POST', body: JSON.stringify(data) });
+    // Eğer kayıt başarılı olduğunda token dönüyorsa kaydet
+    if (res && res.access_token) {
+      await saveTokens(res.access_token, res.refresh_token);
+    }
+    return res;
+  },
+  login: async (data) => {
+    const res = await request('/auth/login', { method: 'POST', body: JSON.stringify(data) });
+    if (res && res.access_token) {
+      await saveTokens(res.access_token, res.refresh_token);
+    }
+    return res;
+  },
 };
 
-// Receipts
+// Receipts API
 export const receiptsApi = {
   upload: async (imageUri, mimeType = 'image/jpeg') => {
     const token = await getToken();
     const formData = new FormData();
-    formData.append('image', { uri: imageUri, name: 'receipt.jpg', type: mimeType });
+    formData.append('image', {
+      uri: imageUri,
+      name: 'receipt.jpg',
+      type: mimeType
+    });
 
     const res = await fetch(`${API_BASE}/receipts`, {
       method: 'POST',
@@ -123,7 +161,7 @@ export const receiptsApi = {
   remove: (id) => request(`/receipts/${id}`, { method: 'DELETE' }),
 };
 
-// Insights
+// Insights API
 export const insightsApi = {
   inflation: (months = 6) => request(`/insights/inflation?months=${months}`),
   anomalies: (threshold = 0.2) => request(`/insights/anomalies?threshold=${threshold}`),

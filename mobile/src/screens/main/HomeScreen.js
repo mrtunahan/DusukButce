@@ -19,12 +19,20 @@ export default function HomeScreen({ navigation }) {
   const fetchReceipts = useCallback(async (p = 1, reset = false) => {
     try {
       const data = await receiptsApi.list(p);
-      setTotal(data.total);
-      setReceipts((prev) => (reset ? data.data : [...prev, ...data.data]));
-      setHasMore(data.data.length === data.limit);
+      if (!data) return;
+
+      const items = Array.isArray(data.data) ? data.data : [];
+      setTotal(data.total ?? 0);
+      setReceipts((prev) => (reset ? items : [...prev, ...items]));
+      setHasMore(items.length === (data.limit ?? 20));
       setPage(p);
     } catch (err) {
-      console.error(err);
+      console.error('API Hatası:', err.message);
+      // Crash olmak yerine boş state ile devam et
+      if (reset) {
+        setReceipts([]);
+        setTotal(0);
+      }
     }
   }, []);
 
